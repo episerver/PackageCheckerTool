@@ -10,7 +10,7 @@ set -Eeuo pipefail
 
 TOOL_NAME="Optimizely DXP NuGet Health Checker"
 TOOL_VERSION="1.0.0"
-DEFAULT_APP_ROOT="/home/site/wwwroot"
+DEFAULT_APP_ROOT="/app"
 NUGET_REGISTRATION_BASE="https://nuget.optimizely.com/v3/registration"
 RELEASE_NOTES_BASE="https://world.optimizely.com/documentation/Release-Notes/"
 JQ_VERSION="1.8.2"
@@ -49,7 +49,7 @@ Options:
   -d, --debug             Print diagnostic messages to stderr
   -h, --help              Show this help
 
-The default application root is /home/site/wwwroot. A positional argument
+The default application root is /app. A positional argument
 ending in .deps.json is treated as --deps; another positional argument is
 used as the application root.
 EOF
@@ -130,7 +130,7 @@ install_jq_if_needed() {
   fi
 
   binary="$TEMP_ROOT/jq"
-  log "jq was not found; downloading a temporary, checksum-verified jq ${JQ_VERSION} binary"
+  log "Using temporary, checksum-verified JSON helper (jq ${JQ_VERSION})"
   secure_download "$url" "$binary" || fatal "Unable to download jq"
   actual=$(sha256_of "$binary")
   [[ "$actual" == "$checksum" ]] || fatal "Downloaded jq checksum does not match"
@@ -175,7 +175,7 @@ locate_deps_file() {
   fi
 
   local location candidate
-  local locations=("." "$(source_location)" "$APP_ROOT")
+  local locations=("." "$(source_location)" "$APP_ROOT" "/app" "/home/site/wwwroot")
   for location in "${locations[@]}"; do
     [[ -d "$location" ]] || continue
     debug "Searching for .deps.json under $location"
@@ -520,7 +520,30 @@ build_recommendations() {
     fi
   done < <(jq -c '.[]' "$installed_json")
 
-  jq 'sort_by(.package)' "$working" > "$destination"
+  if [[ -s "$working" ]] && jq -e 'type == "array"' "$working" >/dev/null 2>&1; then
+    jq 'sort_by(.package)' "$working" > "$destination"
+  else
+    printf '[]\n' > "$destination"
+  fi
+}
+
+json_array_length() {
+  local file="$1" count
+  count=$(jq -rs 'if length == 0 or (.[0] | type) != "array" then 0 else (.[0] | length) end' "$file" 2>/dev/null || true)
+  [[ "$count" =~ ^[0-9]+$ ]] || count=0
+  printf '%s\n' "$count"
+}
+
+package_issue_keywords() {
+  local package="$1" recommendations="$2"
+  jq -rs --arg package "$package" '
+    if length == 0 or (.[0] | type) != "array" then
+      "(none)"
+    else
+      ([.[0][] | select(.package == $package)][0].matched_keywords // []) as $keywords |
+      if ($keywords | length) > 0 then ($keywords | join(", ")) else "(none)" end
+    end
+  ' "$recommendations" 2>/dev/null || printf '(none)\n'
 }
 
 write_full_report() {
@@ -575,7 +598,7 @@ render_results() {
     version=$(jq -r '.version' <<< "$row")
     latest=$(jq -r --arg package "$package" '.[$package] // "unknown"' "$same_major")
     gap=$(format_version_gap "$version" "$latest")
-    keywords=$(jq -r --arg package "$package" '[.[] | select(.package == $package)][0].matched_keywords // [] | if length then join(", ") else "(none)" end' "$recommendations")
+    keywords=$(package_issue_keywords "$package" "$recommendations")
     printf '  %-40s %-14s %-14s %-16s %s\n' "$package" "$version" "$latest" "$gap" "$(highlight_terms "$keywords")"
 
     if [[ "$SHOW_NOTES" == true ]]; then
@@ -663,7 +686,7 @@ main() {
 
   local issue_count recommendation_count
   issue_count=$(jq 'length' "$issues")
-  recommendation_count=$(jq 'length' "$recommendations")
+  recommendation_count=$(json_array_length "$recommendations")
   write_full_report "$deps_file" "$app_root" "$installed" "$same_major" "$absolute" "$recommendations" "$issue_count"
   render_results "$installed" "$same_major" "$recommendations" "$notes_tsv" "$issue_count"
 
