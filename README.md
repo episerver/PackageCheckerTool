@@ -4,6 +4,8 @@ Checks installed `EPiServer.*` and `Optimizely.*` packages in an Azure App Servi
 
 The tool is read-only, prints results in the terminal, and removes all temporary data when it exits.
 
+To access the terminal to run these commands: Go to the Web App in Azure and navigate to SSH in the left-hand menu.
+
 ## Run
 
 ```bash
