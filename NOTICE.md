@@ -1,6 +1,6 @@
 # Third-party notices
 
-The Optimizely DXP NuGet Health Checker is maintained as an original implementation in the `episerver/PackageCheckerTool` repository.
+The Optimizely DXP NuGet Version Checker is maintained as an original implementation in the `episerver/PackageCheckerTool` repository.
 
 ## jq
 
@@ -8,6 +8,6 @@ When jq is not already available, the checker can download an official jq binary
 
 If an internal copy of jq is redistributed with this project, include all notices and license text required by the jq project.
 
-## External data sources
+## External data source
 
-The checker reads public package metadata and release-note information from Optimizely-operated services. Retrieved metadata is not incorporated into this repository and remains subject to the terms applicable to those services.
+The checker reads public package metadata from the Optimizely NuGet service. Retrieved metadata is used only during execution and is not incorporated into the repository or persisted in the customer environment.

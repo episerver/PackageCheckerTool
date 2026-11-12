@@ -36,25 +36,15 @@ assert_true "newer minor" version_is_newer 12.23.0 12.22.9
 assert_true "newer patch" version_is_newer 12.22.10 12.22.9
 assert_false "equal is not newer" version_is_newer 12.22.9 12.22.9
 assert_false "older is not newer" version_is_newer 12.21.9 12.22.0
-assert_true "at least accepts equality" version_at_least 16.3.2 16.3.2
-assert_equal "minor reset gap" "+3min" "$(format_version_gap 12.21.6 12.24.0)"
-assert_equal "combined gap" "+2min, 2pat" "$(format_version_gap 16.1.0 16.3.2)"
-assert_equal "up-to-date gap" "up to date" "$(format_version_gap 12.22.9 12.22.9)"
-assert_equal "unknown gap" "?" "$(format_version_gap 12.22.9 unknown)"
-assert_equal "CMS family" "EPiServer.CMS" "$(package_family EPiServer.CMS.Core)"
-assert_equal "Find family" "EPiServer.Find" "$(package_family EPiServer.Find)"
+assert_equal "major delta" "+1maj" "$(format_version_gap 12.34.4 13.6.0)"
+assert_equal "minor delta" "+3min" "$(format_version_gap 12.21.6 12.24.0)"
+assert_equal "patch delta" "+3pat" "$(format_version_gap 4.4.2 4.4.5)"
+assert_equal "up-to-date delta" "up to date" "$(format_version_gap 12.22.9 12.22.9)"
+assert_equal "ahead delta" "ahead" "$(format_version_gap 13.1.0 13.0.2)"
+assert_equal "unknown delta" "?" "$(format_version_gap 12.22.9 unknown)"
 assert_equal "version normalization" "12 22 9" "$(version_parts 12.22.9-beta+build.1)"
 assert_equal "default application root" "/app" "$DEFAULT_APP_ROOT"
-
-if command -v jq >/dev/null 2>&1; then
-  fixture=$(mktemp)
-  printf '[]\n' > "$fixture"
-  assert_equal "empty recommendation count" "0" "$(json_array_length "$fixture")"
-  assert_equal "empty package keywords" "(none)" "$(package_issue_keywords EPiServer.CMS.Core "$fixture")"
-  printf '[{"package":"EPiServer.CMS.Core","matched_keywords":["performance","slow"]}]\n' > "$fixture"
-  assert_equal "matched package keywords" "performance, slow" "$(package_issue_keywords EPiServer.CMS.Core "$fixture")"
-  rm -f "$fixture"
-fi
+assert_equal "tool version" "1.1.0" "$TOOL_VERSION"
 
 printf '\nTests passed: %d\nTests failed: %d\n' "$passed" "$failed"
 [[ "$failed" -eq 0 ]]

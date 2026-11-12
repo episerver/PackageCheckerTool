@@ -20,9 +20,10 @@ Do not include customer data, credentials, access tokens, or production configur
 
 ## Runtime data handling
 
-- Terminal-only operation is the default.
+- The checker reads only the deployed `.deps.json` file.
+- Results are printed directly in the terminal.
 - Temporary working data is removed automatically when the checker exits.
-- Persistent reports require the explicit `--save-reports DIR` or `--output-dir DIR` option.
+- The checker does not create customer reports, caches, or persistent output files.
 - The checker does not modify deployed application packages.
 
 ## Supply-chain controls
@@ -31,4 +32,4 @@ Do not include customer data, credentials, access tokens, or production configur
 - Require pull-request review for changes to `nugetchk.sh`.
 - Run the checker from a versioned tag or verified commit.
 - The optional jq download is restricted to HTTPS and verified with a pinned SHA-256 checksum before execution.
-- Never add credentials or customer-specific information to the script or generated sample files.
+- Never add credentials or customer-specific information to the script.

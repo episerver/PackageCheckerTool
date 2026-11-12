@@ -1,57 +1,35 @@
 #!/usr/bin/env bash
-# Optimizely DXP NuGet Health Checker
+# Optimizely DXP NuGet Version Checker
 # Purpose-built for Azure App Service Linux / Kudu SSH.
 #
 # Usage:
-#   bash nugetchk.sh [--notes] [--debug] [--refresh] [--deps FILE]
-#                    [--output-dir DIR] [APP_ROOT | DEPS_FILE]
+#   bash nugetchk.sh [--debug] [--deps FILE] [APP_ROOT | DEPS_FILE]
 
 set -Eeuo pipefail
 
-TOOL_NAME="Optimizely DXP NuGet Health Checker"
-TOOL_VERSION="1.0.0"
+TOOL_NAME="Optimizely DXP NuGet Version Checker"
+TOOL_VERSION="1.1.0"
 DEFAULT_APP_ROOT="/app"
 NUGET_REGISTRATION_BASE="https://nuget.optimizely.com/v3/registration"
-RELEASE_NOTES_BASE="https://world.optimizely.com/documentation/Release-Notes/"
 JQ_VERSION="1.8.2"
 
-SHOW_NOTES=false
 DEBUG=false
-FORCE_REFRESH=false
 APP_ROOT="$DEFAULT_APP_ROOT"
 DEPS_OVERRIDE=""
-OUTPUT_OVERRIDE=""
-SAVE_REPORTS=false
 TEMP_ROOT=""
-
-ISSUE_TERMS=(
-  "memory leak"
-  "out of memory"
-  "high memory"
-  "performance"
-  "slow"
-  "timeout"
-  "deadlock"
-  "thread"
-  "cpu"
-)
 
 usage() {
   cat <<'EOF'
 Usage: bash nugetchk.sh [options] [app_root | deps_file]
 
 Options:
-  -n, --notes             Show release notes between installed and latest
-  -f, --deps FILE         Use a specific .deps.json file
-  -o, --output-dir DIR    Persist reports and cache in this directory
-      --save-reports DIR  Same as --output-dir; persistence is opt-in
-      --refresh           Ignore an existing persisted release-note cache
-  -d, --debug             Print diagnostic messages to stderr
-  -h, --help              Show this help
+  -f, --deps FILE   Use a specific .deps.json file
+  -d, --debug       Print diagnostic messages to stderr
+  -h, --help        Show this help
 
-The default application root is /app. A positional argument
-ending in .deps.json is treated as --deps; another positional argument is
-used as the application root.
+The default application root is /app. A positional argument ending in
+.deps.json is treated as --deps; another positional argument is used as the
+application root.
 EOF
 }
 
@@ -62,9 +40,7 @@ fatal() { printf '[nugetchk] ERROR: %s\n' "$*" >&2; exit 1; }
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    -n|--notes) SHOW_NOTES=true; shift ;;
     -d|--debug) DEBUG=true; shift ;;
-    --refresh) FORCE_REFRESH=true; shift ;;
     -h|--help) usage; exit 0 ;;
     -f|--deps)
       [[ $# -ge 2 ]] || fatal "$1 requires a file path"
@@ -73,13 +49,6 @@ while [[ $# -gt 0 ]]; do
       DEPS_OVERRIDE="${1#*=}"
       [[ -n "$DEPS_OVERRIDE" ]] || fatal "--deps requires a file path"
       shift ;;
-    -o|--output-dir|--save-reports)
-      [[ $# -ge 2 ]] || fatal "$1 requires a directory"
-      OUTPUT_OVERRIDE="$2"; SAVE_REPORTS=true; shift 2 ;;
-    --output-dir=*|--save-reports=*)
-      OUTPUT_OVERRIDE="${1#*=}"
-      [[ -n "$OUTPUT_OVERRIDE" ]] || fatal "$1 requires a directory"
-      SAVE_REPORTS=true; shift ;;
     *.deps.json) DEPS_OVERRIDE="$1"; shift ;;
     -*) fatal "Unknown option: $1" ;;
     *) APP_ROOT="$1"; shift ;;
@@ -88,6 +57,11 @@ done
 
 command_exists() { command -v "$1" >/dev/null 2>&1; }
 require_command() { command_exists "$1" || fatal "Required command not found: $1"; }
+
+setup_workspace() {
+  TEMP_ROOT=$(mktemp -d)
+  trap '[[ -n "${TEMP_ROOT:-}" ]] && rm -rf "$TEMP_ROOT"' EXIT
+}
 
 sha256_of() {
   local file="$1"
@@ -139,11 +113,6 @@ install_jq_if_needed() {
   command_exists jq || fatal "Temporary jq binary cannot be executed"
 }
 
-setup_workspace() {
-  TEMP_ROOT=$(mktemp -d)
-  trap '[[ -n "${TEMP_ROOT:-}" ]] && rm -rf "$TEMP_ROOT"' EXIT
-}
-
 source_location() {
   local source_path="${BASH_SOURCE[0]:-}"
   if [[ -n "$source_path" && -f "$source_path" ]]; then
@@ -151,20 +120,6 @@ source_location() {
   else
     pwd
   fi
-}
-
-resolve_output_dir() {
-  if [[ "$SAVE_REPORTS" == true ]]; then
-    OUTPUT_DIR="$OUTPUT_OVERRIDE"
-    mkdir -p "$OUTPUT_DIR" || fatal "Cannot create output directory: $OUTPUT_DIR"
-    [[ -w "$OUTPUT_DIR" ]] || fatal "Output directory is not writable: $OUTPUT_DIR"
-    OUTPUT_DIR=$(cd "$OUTPUT_DIR" && pwd)
-  else
-    OUTPUT_DIR="$TEMP_ROOT/output"
-    mkdir -p "$OUTPUT_DIR"
-  fi
-  REPORT_PATH="$OUTPUT_DIR/nugetchk_report.json"
-  ISSUES_PATH="$OUTPUT_DIR/known_issues.json"
 }
 
 locate_deps_file() {
@@ -179,7 +134,7 @@ locate_deps_file() {
   for location in "${locations[@]}"; do
     [[ -d "$location" ]] || continue
     debug "Searching for .deps.json under $location"
-    candidate=$(find "$location" -maxdepth 2 -type f -name '*.deps.json' -print 2>/dev/null | sort | head -n 1)
+    candidate=$(find "$location" -maxdepth 3 -type f -name '*.deps.json' -print 2>/dev/null | sort | head -n 1)
     if [[ -n "$candidate" ]]; then
       printf '%s\n' "$candidate"
       return
@@ -223,35 +178,28 @@ version_is_newer() {
   ((candidate_patch > current_patch))
 }
 
-version_at_least() {
-  [[ "$1" == "$2" ]] || version_is_newer "$1" "$2"
-}
-
 format_version_gap() {
   local installed="$1" latest="$2"
   [[ -z "$latest" || "$latest" == unknown ]] && { printf '?\n'; return; }
   [[ "$installed" == "$latest" ]] && { printf 'up to date\n'; return; }
-
-  local imaj imin ipat lmaj lmin lpat
-  read -r imaj imin ipat <<< "$(version_parts "$installed")"
-  read -r lmaj lmin lpat <<< "$(version_parts "$latest")"
-  local components=()
-  ((lmaj > imaj)) && components+=("$((lmaj-imaj))maj")
-  ((lmin > imin)) && components+=("$((lmin-imin))min")
-  ((lpat > ipat)) && components+=("$((lpat-ipat))pat")
-  if [[ ${#components[@]} -eq 0 ]]; then
-    printf 'up to date\n'
-  else
-    local joined="${components[0]}" index
-    for ((index=1; index<${#components[@]}; index++)); do joined+=", ${components[$index]}"; done
-    printf '+%s\n' "$joined"
+  if version_is_newer "$installed" "$latest"; then
+    printf 'ahead\n'
+    return
   fi
-}
 
-package_family() {
-  local first second ignored
-  IFS=. read -r first second ignored <<< "$1"
-  printf '%s.%s\n' "$first" "$second"
+  local installed_major installed_minor installed_patch latest_major latest_minor latest_patch
+  read -r installed_major installed_minor installed_patch <<< "$(version_parts "$installed")"
+  read -r latest_major latest_minor latest_patch <<< "$(version_parts "$latest")"
+
+  if ((latest_major > installed_major)); then
+    printf '+%dmaj\n' "$((latest_major-installed_major))"
+  elif ((latest_minor > installed_minor)); then
+    printf '+%dmin\n' "$((latest_minor-installed_minor))"
+  elif ((latest_patch > installed_patch)); then
+    printf '+%dpat\n' "$((latest_patch-installed_patch))"
+  else
+    printf 'up to date\n'
+  fi
 }
 
 https_get() {
@@ -283,349 +231,25 @@ collect_package_versions() {
   [[ -s "$destination" ]]
 }
 
-lookup_latest_versions() {
-  local package_name="$1" installed="$2" versions_file="$TEMP_ROOT/versions.$RANDOM" major same_major absolute
+lookup_latest_version() {
+  local package_name="$1" versions_file="$TEMP_ROOT/versions.$RANDOM" latest
   if ! collect_package_versions "$package_name" "$versions_file"; then
     rm -f "$versions_file"
-    printf '|\n'
+    printf 'unknown\n'
     return
   fi
-  major="${installed%%.*}"
-  absolute=$(tail -n 1 "$versions_file")
-  same_major=$(awk -F. -v major="$major" '$1 == major {last=$0} END {print last}' "$versions_file")
+  latest=$(tail -n 1 "$versions_file")
   rm -f "$versions_file"
-  printf '%s|%s\n' "$same_major" "$absolute"
-}
-
-plain_text_from_html() {
-  sed 's/<span[^>]*material-symbols[^>]*>[^<]*<\/span>//g; s/<[^>]*>/ /g' | \
-    sed 's/&amp;/\&/g; s/&quot;/"/g; s/&#39;/'"'"'/g; s/&lt;/</g; s/&gt;/>/g' | \
-    tr -s ' '
-}
-
-single_line() {
-  LC_ALL=C tr -d '\000-\010\013\014\016-\037\177' | \
-    tr '\t\r\n' '   ' | tr -s ' ' | sed 's/^ *//; s/ *$//'
-}
-
-declare -A NOTE_KEYS=()
-declare -A SCRAPED_FILTERS=()
-
-parse_release_note_page() {
-  local html_file="$1" destination="$2" flat segments segment note_id text description fixes pair package version key
-  flat=$(tr '\n' ' ' < "$html_file" | tr -s ' ')
-  segments="$TEMP_ROOT/release-segments.$RANDOM"
-  printf '%s\n' "$flat" | awk 'BEGIN {RS="releaseNoteId="} NR>1 {print "releaseNoteId=" $0}' > "$segments"
-
-  while IFS= read -r segment; do
-    note_id=$(grep -o '^releaseNoteId=[A-Za-z][A-Za-z0-9]*-[0-9][0-9]*' <<< "$segment" | head -n 1 || true)
-    note_id="${note_id#releaseNoteId=}"
-    [[ -n "$note_id" ]] || continue
-
-    text=$(printf '%s' "$segment" | plain_text_from_html | single_line)
-    description=$(sed "s/.*${note_id}//; s/Fix Version.*//" <<< "$text" | single_line)
-    fixes=$(sed 's/.*Fix Version\/ *s: *//' <<< "$text" | sed 's/[A-Z][a-z][a-z]* [0-9][0-9]*, [0-9][0-9][0-9][0-9].*//' | single_line)
-
-    local old_ifs="$IFS" entries=()
-    IFS=';'; read -ra entries <<< "$fixes"; IFS="$old_ifs"
-    for pair in "${entries[@]}"; do
-      pair=$(single_line <<< "$pair")
-      package=$(awk '{print $1}' <<< "$pair")
-      version=$(awk '{print $2}' <<< "$pair")
-      [[ "$package" == *.* && "$version" =~ ^[0-9]+([.][0-9A-Za-z-]+)+$ ]] || continue
-      key="$note_id|$package|$version"
-      [[ -z "${NOTE_KEYS[$key]:-}" ]] || continue
-      NOTE_KEYS[$key]=1
-      printf '%s\t%s\t%s\t%s\n' "$note_id" "$package" "$version" "$description" >> "$destination"
-    done
-  done < "$segments"
-  rm -f "$segments"
-}
-
-fetch_release_notes_for_filter() {
-  local filter="$1" destination="$2" page=1 html_file url count_before count_after
-  [[ -z "${SCRAPED_FILTERS[$filter]:-}" ]] || return 0
-  SCRAPED_FILTERS[$filter]=1
-
-  while ((page <= 10)); do
-    html_file="$TEMP_ROOT/release-page.$RANDOM.html"
-    url="${RELEASE_NOTES_BASE}?packageFilter=$(jq -nr --arg value "$filter" '$value|@uri')&typeFilter=All"
-    if ((page == 1)); then
-      https_get "$url" > "$html_file" 2>/dev/null || { rm -f "$html_file"; return 1; }
-    else
-      curl --proto '=https' --proto-redir '=https' --tlsv1.2 \
-        --retry 2 --connect-timeout 10 --max-time 30 -fsSL \
-        -A "nugetchk/${TOOL_VERSION}" \
-        --data-urlencode "packageFilter=$filter" --data "typeFilter=All" --data "PageIndex=$page" \
-        "$RELEASE_NOTES_BASE" > "$html_file" 2>/dev/null || { rm -f "$html_file"; return 1; }
-    fi
-
-    grep -q 'releaseNoteId=' "$html_file" || { rm -f "$html_file"; return 1; }
-    count_before=$(wc -l < "$destination" | tr -d ' ')
-    parse_release_note_page "$html_file" "$destination"
-    count_after=$(wc -l < "$destination" | tr -d ' ')
-    rm -f "$html_file"
-    ((count_after > count_before)) || break
-    page=$((page + 1))
-  done
-}
-
-scrape_release_notes() {
-  local destination="$1" packages_file="$2" total index=0 package filter parent
-  : > "$destination"
-  total=$(wc -l < "$packages_file" | tr -d ' ')
-  while IFS= read -r package; do
-    [[ -n "$package" ]] || continue
-    index=$((index + 1))
-    printf '\r  Scraping release notes ... [%d/%d] %s\033[K' "$index" "$total" "$package" >&2
-    filter="$package"
-    if ! fetch_release_notes_for_filter "$filter" "$destination"; then
-      while [[ "$filter" == *.*.* ]]; do
-        parent="${filter%.*}"
-        [[ "$parent" != "$filter" ]] || break
-        filter="$parent"
-        fetch_release_notes_for_filter "$filter" "$destination" && break
-      done
-    fi
-  done < "$packages_file"
-  printf '\r  Scraping release notes ... done. %s entries extracted.\033[K\n' "$(wc -l < "$destination" | tr -d ' ')" >&2
-}
-
-load_or_create_notes() {
-  local notes_file="$1" package_names="$2" cache_zip="$3" answer=""
-  if [[ "$SAVE_REPORTS" == true && "$FORCE_REFRESH" == false && -f "$cache_zip" ]] && command_exists unzip; then
-    printf '\n  Cached release notes found: %s\n' "$(basename "$cache_zip")"
-    if [[ -t 0 ]]; then
-      printf '  Refresh? [y/N] '
-      read -r answer || answer=""
-    fi
-    if [[ ! "$answer" =~ ^[Yy] ]] && unzip -p "$cache_zip" release_notes.tsv > "$notes_file" 2>/dev/null; then
-      printf '  Loaded %s release notes from cache.\n' "$(wc -l < "$notes_file" | tr -d ' ')"
-      return
-    fi
-  fi
-
-  scrape_release_notes "$notes_file" "$package_names"
-  if [[ "$SAVE_REPORTS" == true ]] && command_exists zip; then
-    local cache_stage="$TEMP_ROOT/release_notes.tsv"
-    cp "$notes_file" "$cache_stage"
-    (cd "$TEMP_ROOT" && zip -q -j "$cache_zip" release_notes.tsv) || warn "Could not write release-note cache"
-  fi
-}
-
-notes_tsv_to_json() {
-  local source="$1" destination="$2"
-  jq -Rn '[inputs | split("\t") | select(length >= 4) | {
-    id: .[0], package: .[1], version: .[2], description: .[3]
-  }]' < "$source" > "$destination"
-}
-
-build_issue_catalog() {
-  local notes_json="$1" destination="$2" terms_json
-  terms_json=$(printf '%s\n' "${ISSUE_TERMS[@]}" | jq -R . | jq -s .)
-  jq --argjson terms "$terms_json" '[
-    .[] as $note |
-    [$terms[] | . as $term | select(($note.description | ascii_downcase) | contains($term))] as $matches |
-    select(($matches | length) > 0) |
-    {
-      package: $note.package,
-      release_note_id: $note.id,
-      fix_version: $note.version,
-      matched_keywords: ($matches | unique),
-      release_notes_snippet: $note.description
-    }
-  ]' "$notes_json" > "$destination"
-}
-
-highlight_terms() {
-  local text="$1"
-  if [[ ! -t 1 || -n "${NO_COLOR:-}" ]]; then printf '%s' "$text"; return; fi
-
-  local lower="${text,,}" term lower_term offset remainder prefix
-  local matches=() entry start length finish cursor=0 output=""
-  for term in "${ISSUE_TERMS[@]}"; do
-    lower_term="${term,,}"; offset=0
-    while true; do
-      remainder="${lower:$offset}"
-      prefix="${remainder%%"$lower_term"*}"
-      [[ "$prefix" != "$remainder" ]] || break
-      matches+=("$((offset + ${#prefix})):${#term}")
-      offset=$((offset + ${#prefix} + ${#term}))
-    done
-  done
-  [[ ${#matches[@]} -gt 0 ]] || { printf '%s' "$text"; return; }
-
-  while IFS= read -r entry; do
-    start="${entry%%:*}"; length="${entry##*:}"; finish=$((start + length))
-    if ((start >= cursor)); then
-      output+="${text:$cursor:$((start-cursor))}"$'\033[30;103m'"${text:$start:$length}"$'\033[0m'
-      cursor=$finish
-    fi
-  done < <(printf '%s\n' "${matches[@]}" | sort -t: -k1,1n)
-  output+="${text:$cursor}"
-  printf '%s' "$output"
-}
-
-build_recommendations() {
-  local installed_json="$1" issues_json="$2" same_major_json="$3" absolute_json="$4" destination="$5"
-  local package version family same_latest absolute_latest candidates relevant issue fix
-  local working="$TEMP_ROOT/recommendations.json"
-  printf '[]\n' > "$working"
-
-  while IFS= read -r package_row; do
-    package=$(jq -r '.name' <<< "$package_row")
-    version=$(jq -r '.version' <<< "$package_row")
-    family=$(package_family "$package")
-    same_latest=$(jq -r --arg package "$package" '.[$package] // "unknown"' "$same_major_json")
-    absolute_latest=$(jq -r --arg package "$package" '.[$package] // "unknown"' "$absolute_json")
-    candidates="$TEMP_ROOT/candidates.$RANDOM.json"
-    relevant="$TEMP_ROOT/relevant.$RANDOM.jsonl"
-    : > "$relevant"
-
-    jq --arg package "$package" --arg family "$family" '[
-      .[] | select(
-        .package == $package or
-        ((.package | split(".") | .[0:2] | join(".")) == $family)
-      )
-    ]' "$issues_json" > "$candidates"
-
-    while IFS= read -r issue; do
-      fix=$(jq -r '.fix_version' <<< "$issue")
-      [[ "$fix" != unknown ]] || continue
-      if version_is_newer "$fix" "$version"; then
-        [[ "$same_latest" == unknown ]] || version_at_least "$same_latest" "$fix" || continue
-        printf '%s\n' "$issue" >> "$relevant"
-      fi
-    done < <(jq -c '.[]' "$candidates")
-
-    local relevant_json="$TEMP_ROOT/relevant.$RANDOM.json"
-    jq -s . "$relevant" > "$relevant_json"
-    if [[ $(jq 'length' "$relevant_json") -gt 0 ]]; then
-      jq --arg package "$package" --arg installed "$version" --arg latest "$same_latest" \
-        --arg absolute "$absolute_latest" --slurpfile issues "$relevant_json" '. + [{
-          package: $package,
-          installed_version: $installed,
-          latest_available: $latest,
-          absolute_latest: $absolute,
-          issues_fixed_in_newer: ($issues[0] | length),
-          matched_keywords: ([$issues[0][].matched_keywords[]] | unique),
-          details: [$issues[0][] | {
-            release_note_id,
-            fix_version,
-            keywords: .matched_keywords,
-            snippet: .release_notes_snippet
-          }]
-        }]' "$working" > "$working.next"
-      mv "$working.next" "$working"
-    fi
-  done < <(jq -c '.[]' "$installed_json")
-
-  if [[ -s "$working" ]] && jq -e 'type == "array"' "$working" >/dev/null 2>&1; then
-    jq 'sort_by(.package)' "$working" > "$destination"
-  else
-    printf '[]\n' > "$destination"
-  fi
-}
-
-json_array_length() {
-  local file="$1" count
-  count=$(jq -rs 'if length == 0 or (.[0] | type) != "array" then 0 else (.[0] | length) end' "$file" 2>/dev/null || true)
-  [[ "$count" =~ ^[0-9]+$ ]] || count=0
-  printf '%s\n' "$count"
-}
-
-package_issue_keywords() {
-  local package="$1" recommendations="$2"
-  jq -rs --arg package "$package" '
-    if length == 0 or (.[0] | type) != "array" then
-      "(none)"
-    else
-      ([.[0][] | select(.package == $package)][0].matched_keywords // []) as $keywords |
-      if ($keywords | length) > 0 then ($keywords | join(", ")) else "(none)" end
-    end
-  ' "$recommendations" 2>/dev/null || printf '(none)\n'
-}
-
-write_full_report() {
-  local deps_file="$1" app_root="$2" installed="$3" same_major="$4" absolute="$5" recommendations="$6" issue_count="$7"
-  jq -n \
-    --arg generated "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-    --arg root "$app_root" \
-    --arg deps "$(basename "$deps_file")" \
-    --slurpfile installed "$installed" \
-    --slurpfile same "$same_major" \
-    --slurpfile absolute "$absolute" \
-    --slurpfile recommendations "$recommendations" \
-    --argjson issue_count "$issue_count" '{
-      generated_at: $generated,
-      app_root: $root,
-      deps_file: $deps,
-      installed_package_count: ($installed[0] | length),
-      packages_with_issues: ($recommendations[0] | length),
-      total_issue_entries: $issue_count,
-      installed_packages: $installed[0],
-      latest_versions_same_major: $same[0],
-      latest_versions_absolute: $absolute[0],
-      recommendations: $recommendations[0]
-    }' > "$REPORT_PATH"
-}
-
-print_wrapped_note() {
-  local text="$1" width=100 chunk split
-  while [[ ${#text} -gt $width ]]; do
-    chunk="${text:0:$width}"
-    split="${chunk% *}"
-    [[ -n "$split" && "$split" != "$chunk" ]] || split="$chunk"
-    printf '%s\n' "$(highlight_terms "$split")"
-    text="      ${text:${#split}}"
-    text="      ${text#"${text%%[! ]*}"}"
-  done
-  printf '%s\n' "$(highlight_terms "$text")"
-}
-
-render_results() {
-  local installed="$1" same_major="$2" recommendations="$3" notes_tsv="$4" issue_count="$5"
-  local package version latest gap keywords package_lower family note_family note_id note_package note_version note_description
-
-  echo ""
-  echo "  RESULTS: $issue_count release notes matched keywords"
-  echo ""
-  printf '  %-40s %-14s %-14s %-16s %s\n' "PACKAGE" "INSTALLED" "LATEST" "DELTA" "ISSUES FOUND"
-  printf '  %-40s %-14s %-14s %-16s %s\n' "-------" "---------" "------" "-----" "------------"
-
-  while IFS= read -r row; do
-    package=$(jq -r '.name' <<< "$row")
-    version=$(jq -r '.version' <<< "$row")
-    latest=$(jq -r --arg package "$package" '.[$package] // "unknown"' "$same_major")
-    gap=$(format_version_gap "$version" "$latest")
-    keywords=$(package_issue_keywords "$package" "$recommendations")
-    printf '  %-40s %-14s %-14s %-16s %s\n' "$package" "$version" "$latest" "$gap" "$(highlight_terms "$keywords")"
-
-    if [[ "$SHOW_NOTES" == true ]]; then
-      package_lower=$(printf '%s' "$package" | tr '[:upper:]' '[:lower:]')
-      printf '    Url: %s\n\n' "https://nuget.optimizely.com/packages/${package_lower}/${latest}"
-      family=$(package_family "$package")
-      while IFS=$'\t' read -r note_id note_package note_version note_description; do
-        note_family=$(package_family "$note_package")
-        [[ "$note_package" == "$package" || "$note_family" == "$family" ]] || continue
-        version_is_newer "$note_version" "$version" || continue
-        [[ "$latest" == unknown ]] && continue
-        version_at_least "$latest" "$note_version" || continue
-        print_wrapped_note "    [${note_version}] ${note_id} ${note_description}"
-        printf '    Url: %s\n\n' "https://world.optimizely.com/documentation/Release-Notes/ReleaseNote/?releaseNoteId=${note_id}"
-      done < "$notes_tsv"
-    fi
-  done < <(jq -c '.[]' "$installed")
+  printf '%s\n' "${latest:-unknown}"
 }
 
 main() {
   local required
-  for required in curl find sort awk sed grep tr head tail wc; do
+  for required in curl find sort awk tr head tail; do
     require_command "$required"
   done
   setup_workspace
   install_jq_if_needed
-  resolve_output_dir
 
   echo ""
   echo "======================================================================"
@@ -633,13 +257,10 @@ main() {
   echo "  $(date -u +%Y-%m-%dT%H:%M:%SZ)"
   echo "======================================================================"
 
-  local deps_file app_root app_name cache_zip installed package_count package_names
+  local deps_file installed package_count results_file
   deps_file=$(locate_deps_file)
-  app_root=$(cd "$(dirname "$deps_file")" && pwd)
-  app_name=$(basename "$deps_file" .deps.json)
-  cache_zip="$OUTPUT_DIR/${app_name}_nugetchk_notes.zip"
   installed="$TEMP_ROOT/installed.json"
-  package_names="$TEMP_ROOT/package_names.txt"
+  results_file="$TEMP_ROOT/results.tsv"
 
   log "Using dependency file: $deps_file"
   read_installed_packages "$deps_file" "$installed"
@@ -649,64 +270,46 @@ main() {
     echo "  No EPiServer/Optimizely packages found. Nothing to check."
     return
   fi
-  jq -r '.[].name' "$installed" > "$package_names"
+
   echo ""
   echo "  Found $package_count EPiServer/Optimizely packages in $(basename "$deps_file")"
   echo ""
-  echo "  Querying nuget.optimizely.com for latest versions ..."
+  echo "  Querying nuget.optimizely.com for latest stable versions ..."
 
-  local same_major="$TEMP_ROOT/latest_same_major.json" absolute="$TEMP_ROOT/latest_absolute.json"
-  printf '{}\n' > "$same_major"; printf '{}\n' > "$absolute"
-  local row package version lookup same absolute_version
-  local newer_majors=()
+  local row package installed_version latest delta
+  local updates=0 current=0 failures=0
+  : > "$results_file"
   while IFS= read -r row; do
     package=$(jq -r '.name' <<< "$row")
-    version=$(jq -r '.version' <<< "$row")
-    lookup=$(lookup_latest_versions "$package" "$version")
-    same="${lookup%%|*}"; absolute_version="${lookup##*|}"
-    [[ -n "$same" ]] || same="$absolute_version"
-    [[ -n "$same" ]] || same=unknown
-    [[ -n "$absolute_version" ]] || absolute_version=unknown
-    [[ "$same" != unknown ]] || warn "No version data returned for $package"
+    installed_version=$(jq -r '.version' <<< "$row")
+    latest=$(lookup_latest_version "$package")
+    delta=$(format_version_gap "$installed_version" "$latest")
+    printf '%s\t%s\t%s\t%s\n' "$package" "$installed_version" "$latest" "$delta" >> "$results_file"
 
-    jq --arg package "$package" --arg value "$same" '. + {($package): $value}' "$same_major" > "$same_major.next" && mv "$same_major.next" "$same_major"
-    jq --arg package "$package" --arg value "$absolute_version" '. + {($package): $value}' "$absolute" > "$absolute.next" && mv "$absolute.next" "$absolute"
-
-    if [[ "$absolute_version" != unknown && "$same" != unknown && "$absolute_version" != "$same" ]]; then
-      newer_majors+=("    * $package: v$absolute_version available (current major: ${version%%.*})")
+    if [[ "$latest" == unknown ]]; then
+      failures=$((failures + 1))
+    elif [[ "$delta" == "up to date" || "$delta" == ahead ]]; then
+      current=$((current + 1))
+    else
+      updates=$((updates + 1))
     fi
   done < <(jq -c '.[]' "$installed")
 
-  local notes_tsv="$TEMP_ROOT/release_notes.tsv" notes_json="$TEMP_ROOT/release_notes.json" issues="$TEMP_ROOT/issues.json" recommendations="$TEMP_ROOT/recommendations.json"
-  load_or_create_notes "$notes_tsv" "$package_names" "$cache_zip"
-  notes_tsv_to_json "$notes_tsv" "$notes_json"
-  build_issue_catalog "$notes_json" "$issues"
-  cp "$issues" "$ISSUES_PATH"
-  build_recommendations "$installed" "$issues" "$same_major" "$absolute" "$recommendations"
-
-  local issue_count recommendation_count
-  issue_count=$(jq 'length' "$issues")
-  recommendation_count=$(json_array_length "$recommendations")
-  write_full_report "$deps_file" "$app_root" "$installed" "$same_major" "$absolute" "$recommendations" "$issue_count"
-  render_results "$installed" "$same_major" "$recommendations" "$notes_tsv" "$issue_count"
+  echo ""
+  printf '  %-40s %-14s %-14s %s\n' "PACKAGE" "INSTALLED" "LATEST" "DELTA"
+  printf '  %-40s %-14s %-14s %s\n' "-------" "---------" "------" "-----"
+  while IFS=$'\t' read -r package installed_version latest delta; do
+    printf '  %-40s %-14s %-14s %s\n' "$package" "$installed_version" "$latest" "$delta"
+  done < "$results_file"
 
   echo ""
   echo "  ----------------------------------------------------------------------"
   echo "  Total packages scanned:       $package_count"
-  echo "  Packages with issues:         $recommendation_count"
-  echo "  Release notes matched:        $issue_count"
-  if [[ ${#newer_majors[@]} -gt 0 ]]; then
-    echo ""
-    echo "  Newer major versions available:"
-    printf '%s\n' "${newer_majors[@]}"
-  fi
+  echo "  Updates available:            $updates"
+  echo "  Up to date or ahead:          $current"
+  echo "  Version lookup failures:      $failures"
   echo ""
-  if [[ "$SAVE_REPORTS" == true ]]; then
-    echo "  Report:       $REPORT_PATH"
-    echo "  Known issues: $ISSUES_PATH"
-  else
-    echo "  No files saved. Temporary working data will be removed automatically."
-  fi
+  echo "  No files saved. Temporary working data will be removed automatically."
   echo "======================================================================"
 }
 
