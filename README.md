@@ -7,7 +7,7 @@ A purpose-built Bash utility for Azure App Service Linux and Kudu SSH. It reads 
 **The checker does not persist files by default.** It uses a temporary workspace while running and removes that workspace automatically when it exits. The deployed application and its packages are never modified.
 
 ## Quick start
-
+Navigate to Azure > SSH ()
 Run the protected `v1.0.0` release from the application directory:
 
 ```bash
