@@ -8,6 +8,7 @@ A purpose-built Bash utility for Azure App Service Linux and Kudu SSH. It reads 
 
 ## Quick start
 Navigate to Azure > SSH ()
+
 Run the protected `v1.0.0` release from the application directory:
 
 ```bash
