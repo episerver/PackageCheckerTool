@@ -44,6 +44,17 @@ assert_equal "unknown gap" "?" "$(format_version_gap 12.22.9 unknown)"
 assert_equal "CMS family" "EPiServer.CMS" "$(package_family EPiServer.CMS.Core)"
 assert_equal "Find family" "EPiServer.Find" "$(package_family EPiServer.Find)"
 assert_equal "version normalization" "12 22 9" "$(version_parts 12.22.9-beta+build.1)"
+assert_equal "default application root" "/app" "$DEFAULT_APP_ROOT"
+
+if command -v jq >/dev/null 2>&1; then
+  fixture=$(mktemp)
+  printf '[]\n' > "$fixture"
+  assert_equal "empty recommendation count" "0" "$(json_array_length "$fixture")"
+  assert_equal "empty package keywords" "(none)" "$(package_issue_keywords EPiServer.CMS.Core "$fixture")"
+  printf '[{"package":"EPiServer.CMS.Core","matched_keywords":["performance","slow"]}]\n' > "$fixture"
+  assert_equal "matched package keywords" "performance, slow" "$(package_issue_keywords EPiServer.CMS.Core "$fixture")"
+  rm -f "$fixture"
+fi
 
 printf '\nTests passed: %d\nTests failed: %d\n' "$passed" "$failed"
 [[ "$failed" -eq 0 ]]

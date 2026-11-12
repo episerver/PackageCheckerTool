@@ -54,20 +54,13 @@ Protect the tag before publishing the terminal command.
 ## Run from Kudu SSH
 
 ```bash
-cd /home/site/wwwroot
+cd /app
 curl --proto '=https' --proto-redir '=https' --tlsv1.2 -fsSL \
   "https://raw.githubusercontent.com/episerver/PackageCheckerTool/v1.0.0/nugetchk.sh" |
   bash
 ```
 
-Terminal plus a downloadable text report:
-
-```bash
-cd /home/site/wwwroot
-curl --proto '=https' --proto-redir '=https' --tlsv1.2 -fsSL \
-  "https://raw.githubusercontent.com/episerver/PackageCheckerTool/v1.0.0/nugetchk.sh" |
-  bash 2>&1 | tee nugetchk_terminal_report.txt
-```
+The checker searches `/app` by default and prints results directly in the terminal.
 
 ## Optional integrity verification
 
@@ -81,7 +74,8 @@ TEMP_SCRIPT=$(mktemp)
 curl --proto '=https' --proto-redir '=https' --tlsv1.2 -fsSL \
   "$SCRIPT_URL" -o "$TEMP_SCRIPT"
 printf '%s  %s\n' "$EXPECTED_SHA256" "$TEMP_SCRIPT" | sha256sum -c -
-bash "$TEMP_SCRIPT" --output-dir /home/site/wwwroot
+cd /app
+bash "$TEMP_SCRIPT"
 STATUS=$?
 rm -f "$TEMP_SCRIPT"
 test "$STATUS" -eq 0

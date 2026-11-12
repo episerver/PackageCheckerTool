@@ -8,10 +8,10 @@ A purpose-built Bash utility for Azure App Service Linux and Kudu SSH. It reads 
 
 ## Quick start
 
-Run the protected `v1.0.0` release:
+Run the protected `v1.0.0` release from the application directory:
 
 ```bash
-cd /home/site/wwwroot
+cd /app
 curl --proto '=https' --proto-redir '=https' --tlsv1.2 -fsSL \
   "https://raw.githubusercontent.com/episerver/PackageCheckerTool/v1.0.0/nugetchk.sh" | bash
 ```
@@ -19,7 +19,7 @@ curl --proto '=https' --proto-redir '=https' --tlsv1.2 -fsSL \
 Show all available release-note summaries in the terminal:
 
 ```bash
-cd /home/site/wwwroot
+cd /app
 curl --proto '=https' --proto-redir '=https' --tlsv1.2 -fsSL \
   "https://raw.githubusercontent.com/episerver/PackageCheckerTool/v1.0.0/nugetchk.sh" | \
   bash -s -- --notes
@@ -28,17 +28,17 @@ curl --proto '=https' --proto-redir '=https' --tlsv1.2 -fsSL \
 Use a specific dependency file:
 
 ```bash
-cd /home/site/wwwroot
+cd /app
 curl --proto '=https' --proto-redir '=https' --tlsv1.2 -fsSL \
   "https://raw.githubusercontent.com/episerver/PackageCheckerTool/v1.0.0/nugetchk.sh" | \
-  bash -s -- --deps /home/site/wwwroot/MyApp.deps.json
+  bash -s -- --deps /app/MyApp.deps.json
 ```
 
 Until the first release tag is created, replace `v1.0.0` with `main` for testing only.
 
 ## What it does
 
-1. Locates the deployed application's `.deps.json` file.
+1. Locates the deployed application's `.deps.json` file, searching `/app` by default with `/home/site/wwwroot` as a compatibility fallback.
 2. Extracts installed `EPiServer.*` and `Optimizely.*` package versions.
 3. Queries the Optimizely NuGet registration feed for current stable versions.
 4. Reads the archived Optimizely release-note pages.
