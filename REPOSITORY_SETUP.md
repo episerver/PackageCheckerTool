@@ -87,10 +87,14 @@ rm -f "$TEMP_SCRIPT"
 test "$STATUS" -eq 0
 ```
 
-## Generated reports
+## Data handling
 
-```text
-/home/site/wwwroot/nugetchk_report.json
-/home/site/wwwroot/known_issues.json
-/home/site/wwwroot/nugetchk_terminal_report.txt  # when tee is used
+The default command prints results to the terminal and removes its temporary workspace automatically. It does not persist customer report data.
+
+Persistent JSON reports are available only through the explicit opt-in option:
+
+```bash
+bash nugetchk.sh --save-reports /approved/output/directory
 ```
+
+Do not enable report persistence in a customer environment without approval.

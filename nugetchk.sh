@@ -21,6 +21,7 @@ FORCE_REFRESH=false
 APP_ROOT="$DEFAULT_APP_ROOT"
 DEPS_OVERRIDE=""
 OUTPUT_OVERRIDE=""
+SAVE_REPORTS=false
 TEMP_ROOT=""
 
 ISSUE_TERMS=(
@@ -42,8 +43,9 @@ Usage: bash nugetchk.sh [options] [app_root | deps_file]
 Options:
   -n, --notes             Show release notes between installed and latest
   -f, --deps FILE         Use a specific .deps.json file
-  -o, --output-dir DIR    Directory for reports and the release-note cache
-      --refresh           Ignore an existing release-note cache
+  -o, --output-dir DIR    Persist reports and cache in this directory
+      --save-reports DIR  Same as --output-dir; persistence is opt-in
+      --refresh           Ignore an existing persisted release-note cache
   -d, --debug             Print diagnostic messages to stderr
   -h, --help              Show this help
 
@@ -71,13 +73,13 @@ while [[ $# -gt 0 ]]; do
       DEPS_OVERRIDE="${1#*=}"
       [[ -n "$DEPS_OVERRIDE" ]] || fatal "--deps requires a file path"
       shift ;;
-    -o|--output-dir)
+    -o|--output-dir|--save-reports)
       [[ $# -ge 2 ]] || fatal "$1 requires a directory"
-      OUTPUT_OVERRIDE="$2"; shift 2 ;;
-    --output-dir=*)
+      OUTPUT_OVERRIDE="$2"; SAVE_REPORTS=true; shift 2 ;;
+    --output-dir=*|--save-reports=*)
       OUTPUT_OVERRIDE="${1#*=}"
-      [[ -n "$OUTPUT_OVERRIDE" ]] || fatal "--output-dir requires a directory"
-      shift ;;
+      [[ -n "$OUTPUT_OVERRIDE" ]] || fatal "$1 requires a directory"
+      SAVE_REPORTS=true; shift ;;
     *.deps.json) DEPS_OVERRIDE="$1"; shift ;;
     -*) fatal "Unknown option: $1" ;;
     *) APP_ROOT="$1"; shift ;;
@@ -108,7 +110,7 @@ secure_download() {
 install_jq_if_needed() {
   command_exists jq && return 0
 
-  local machine url checksum cache_dir binary temp actual
+  local machine url checksum binary actual
   machine=$(uname -m)
   case "$machine" in
     x86_64|amd64)
@@ -127,32 +129,14 @@ install_jq_if_needed() {
     checksum="$NUGETCHK_JQ_SHA256"
   fi
 
-  cache_dir="${NUGETCHK_CACHE_DIR:-${HOME:-/tmp}/.cache/nugetchk}"
-  mkdir -p "$cache_dir" || fatal "Cannot create cache directory: $cache_dir"
-  binary="$cache_dir/jq-${JQ_VERSION}-${machine}"
-
-  if [[ -f "$binary" ]]; then
-    actual=$(sha256_of "$binary")
-    [[ "$actual" == "$checksum" ]] || fatal "Cached jq checksum does not match"
-  else
-    log "jq was not found; downloading and verifying jq ${JQ_VERSION}"
-    temp=$(mktemp "$cache_dir/.jq.XXXXXX")
-    if ! secure_download "$url" "$temp"; then
-      rm -f "$temp"
-      fatal "Unable to download jq"
-    fi
-    actual=$(sha256_of "$temp")
-    if [[ "$actual" != "$checksum" ]]; then
-      rm -f "$temp"
-      fatal "Downloaded jq checksum does not match"
-    fi
-    chmod 0755 "$temp"
-    mv "$temp" "$binary"
-  fi
-
-  ln -sfn "$binary" "$cache_dir/jq"
-  export PATH="$cache_dir:$PATH"
-  command_exists jq || fatal "jq was installed but cannot be executed"
+  binary="$TEMP_ROOT/jq"
+  log "jq was not found; downloading a temporary, checksum-verified jq ${JQ_VERSION} binary"
+  secure_download "$url" "$binary" || fatal "Unable to download jq"
+  actual=$(sha256_of "$binary")
+  [[ "$actual" == "$checksum" ]] || fatal "Downloaded jq checksum does not match"
+  chmod 0700 "$binary"
+  export PATH="$TEMP_ROOT:$PATH"
+  command_exists jq || fatal "Temporary jq binary cannot be executed"
 }
 
 setup_workspace() {
@@ -170,12 +154,15 @@ source_location() {
 }
 
 resolve_output_dir() {
-  local fallback
-  fallback=$(source_location)
-  OUTPUT_DIR="${OUTPUT_OVERRIDE:-${NUGETCHK_OUTPUT_DIR:-$fallback}}"
-  mkdir -p "$OUTPUT_DIR" || fatal "Cannot create output directory: $OUTPUT_DIR"
-  [[ -w "$OUTPUT_DIR" ]] || fatal "Output directory is not writable: $OUTPUT_DIR"
-  OUTPUT_DIR=$(cd "$OUTPUT_DIR" && pwd)
+  if [[ "$SAVE_REPORTS" == true ]]; then
+    OUTPUT_DIR="$OUTPUT_OVERRIDE"
+    mkdir -p "$OUTPUT_DIR" || fatal "Cannot create output directory: $OUTPUT_DIR"
+    [[ -w "$OUTPUT_DIR" ]] || fatal "Output directory is not writable: $OUTPUT_DIR"
+    OUTPUT_DIR=$(cd "$OUTPUT_DIR" && pwd)
+  else
+    OUTPUT_DIR="$TEMP_ROOT/output"
+    mkdir -p "$OUTPUT_DIR"
+  fi
   REPORT_PATH="$OUTPUT_DIR/nugetchk_report.json"
   ISSUES_PATH="$OUTPUT_DIR/known_issues.json"
 }
@@ -406,7 +393,7 @@ scrape_release_notes() {
 
 load_or_create_notes() {
   local notes_file="$1" package_names="$2" cache_zip="$3" answer=""
-  if [[ "$FORCE_REFRESH" == false && -f "$cache_zip" ]] && command_exists unzip; then
+  if [[ "$SAVE_REPORTS" == true && "$FORCE_REFRESH" == false && -f "$cache_zip" ]] && command_exists unzip; then
     printf '\n  Cached release notes found: %s\n' "$(basename "$cache_zip")"
     if [[ -t 0 ]]; then
       printf '  Refresh? [y/N] '
@@ -419,7 +406,7 @@ load_or_create_notes() {
   fi
 
   scrape_release_notes "$notes_file" "$package_names"
-  if command_exists zip; then
+  if [[ "$SAVE_REPORTS" == true ]] && command_exists zip; then
     local cache_stage="$TEMP_ROOT/release_notes.tsv"
     cp "$notes_file" "$cache_stage"
     (cd "$TEMP_ROOT" && zip -q -j "$cache_zip" release_notes.tsv) || warn "Could not write release-note cache"
@@ -613,8 +600,8 @@ main() {
   for required in curl find sort awk sed grep tr head tail wc; do
     require_command "$required"
   done
-  install_jq_if_needed
   setup_workspace
+  install_jq_if_needed
   resolve_output_dir
 
   echo ""
@@ -691,8 +678,12 @@ main() {
     printf '%s\n' "${newer_majors[@]}"
   fi
   echo ""
-  echo "  Report:       $REPORT_PATH"
-  echo "  Known issues: $ISSUES_PATH"
+  if [[ "$SAVE_REPORTS" == true ]]; then
+    echo "  Report:       $REPORT_PATH"
+    echo "  Known issues: $ISSUES_PATH"
+  else
+    echo "  No files saved. Temporary working data will be removed automatically."
+  fi
   echo "======================================================================"
 }
 

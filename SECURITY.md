@@ -18,6 +18,13 @@ Include:
 
 Do not include customer data, credentials, access tokens, or production configuration in a report.
 
+## Runtime data handling
+
+- Terminal-only operation is the default.
+- Temporary working data is removed automatically when the checker exits.
+- Persistent reports require the explicit `--save-reports DIR` or `--output-dir DIR` option.
+- The checker does not modify deployed application packages.
+
 ## Supply-chain controls
 
 - Protect the default branch and `v*` release tags.

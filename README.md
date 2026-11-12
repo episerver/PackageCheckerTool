@@ -1,10 +1,14 @@
 # Optimizely DXP NuGet Health Checker
 
-A purpose-built Bash utility for Azure App Service Linux and Kudu SSH. It reads a deployed application's `.deps.json`, checks EPiServer and Optimizely package versions, highlights potentially relevant fixes, prints a terminal summary, and writes JSON reports.
+A purpose-built Bash utility for Azure App Service Linux and Kudu SSH. It reads a deployed application's `.deps.json`, checks EPiServer and Optimizely package versions, highlights potentially relevant fixes, and prints a terminal summary.
+
+## Customer-safe default
+
+**The checker does not persist files by default.** It uses a temporary workspace while running and removes that workspace automatically when it exits. The deployed application and its packages are never modified.
 
 ## Quick start
 
-Run the protected `v1.0.0` release from the public Optimizely repository:
+Run the protected `v1.0.0` release:
 
 ```bash
 cd /home/site/wwwroot
@@ -12,16 +16,7 @@ curl --proto '=https' --proto-redir '=https' --tlsv1.2 -fsSL \
   "https://raw.githubusercontent.com/episerver/PackageCheckerTool/v1.0.0/nugetchk.sh" | bash
 ```
 
-Print the results and save the same terminal output:
-
-```bash
-cd /home/site/wwwroot
-curl --proto '=https' --proto-redir '=https' --tlsv1.2 -fsSL \
-  "https://raw.githubusercontent.com/episerver/PackageCheckerTool/v1.0.0/nugetchk.sh" | \
-  bash 2>&1 | tee nugetchk_terminal_report.txt
-```
-
-Show the available release-note summaries:
+Show all available release-note summaries in the terminal:
 
 ```bash
 cd /home/site/wwwroot
@@ -39,36 +34,44 @@ curl --proto '=https' --proto-redir '=https' --tlsv1.2 -fsSL \
   bash -s -- --deps /home/site/wwwroot/MyApp.deps.json
 ```
 
+Until the first release tag is created, replace `v1.0.0` with `main` for testing only.
+
 ## What it does
 
 1. Locates the deployed application's `.deps.json` file.
 2. Extracts installed `EPiServer.*` and `Optimizely.*` package versions.
-3. Queries the Optimizely NuGet registration feed for current versions.
+3. Queries the Optimizely NuGet registration feed for current stable versions.
 4. Reads the archived Optimizely release-note pages.
 5. Flags notes mentioning memory, performance, timeout, deadlock, thread, or CPU concerns.
-6. Prints a terminal table and writes reusable reports.
-
-The checker is read-only with respect to the deployed application. It does not install, remove, or upgrade application packages.
+6. Prints a copyable table and summary directly in the terminal.
 
 ## Options
 
 ```text
 -n, --notes             Show release-note summaries
 -f, --deps FILE         Select a specific .deps.json file
--o, --output-dir DIR    Select the report and cache directory
-    --refresh           Ignore an existing release-note cache
+-o, --output-dir DIR    Explicitly persist reports and cache in a directory
+    --save-reports DIR  Same as --output-dir; persistence is opt-in
+    --refresh           Ignore an existing persisted release-note cache
 -d, --debug             Show diagnostic messages
 -h, --help              Show usage
 ```
 
-## Output
+## Optional report persistence
 
-- `nugetchk_report.json` — complete package and recommendation report
-- `known_issues.json` — keyword-matched release-note records
-- `<AppName>_nugetchk_notes.zip` — optional release-note cache
-- `nugetchk_terminal_report.txt` — created when the command uses `tee`
+Persistent reports are disabled by default. If an authorized workflow specifically requires files, opt in explicitly:
 
-When the script is piped into Bash, reports are written to the current directory. Set `NUGETCHK_OUTPUT_DIR` or use `--output-dir` to choose another location.
+```bash
+bash nugetchk.sh --save-reports /approved/output/directory
+```
+
+This creates:
+
+- `nugetchk_report.json`
+- `known_issues.json`
+- `<AppName>_nugetchk_notes.zip` when zip is available
+
+Do not enable persistence in a customer environment unless the location and retention have been approved.
 
 ## Dependencies and network access
 
@@ -91,6 +94,8 @@ Runtime HTTPS destinations:
 - `world.optimizely.com`
 - `github.com/jqlang/jq` only when jq is missing and no internal URL is supplied
 
+When jq is missing, its verified helper binary is placed only in the temporary workspace and removed automatically when the checker exits.
+
 ## Release-note limitation
 
 The World release-note archive was frozen in May 2024. Package version checks remain current, but packages released later may not have issue details in that archive.
@@ -98,6 +103,7 @@ The World release-note archive was frozen in May 2024. Package version checks re
 ## Tests
 
 ```bash
+bash -n nugetchk.sh
 bash test/test_nugetchk.sh
 ```
 
