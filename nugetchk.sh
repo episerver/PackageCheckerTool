@@ -191,15 +191,21 @@ format_version_gap() {
   read -r installed_major installed_minor installed_patch <<< "$(version_parts "$installed")"
   read -r latest_major latest_minor latest_patch <<< "$(version_parts "$latest")"
 
-  if ((latest_major > installed_major)); then
-    printf '+%dmaj\n' "$((latest_major-installed_major))"
-  elif ((latest_minor > installed_minor)); then
-    printf '+%dmin\n' "$((latest_minor-installed_minor))"
-  elif ((latest_patch > installed_patch)); then
-    printf '+%dpat\n' "$((latest_patch-installed_patch))"
-  else
+  local components=() joined index
+  ((latest_major > installed_major)) && components+=("$((latest_major-installed_major))maj")
+  ((latest_minor > installed_minor)) && components+=("$((latest_minor-installed_minor))min")
+  ((latest_patch > installed_patch)) && components+=("$((latest_patch-installed_patch))pat")
+
+  if [[ ${#components[@]} -eq 0 ]]; then
     printf 'up to date\n'
+    return
   fi
+
+  joined="${components[0]}"
+  for ((index=1; index<${#components[@]}; index++)); do
+    joined+=", ${components[$index]}"
+  done
+  printf '+%s\n' "$joined"
 }
 
 https_get() {

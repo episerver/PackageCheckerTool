@@ -41,19 +41,20 @@ curl --proto '=https' --proto-redir '=https' --tlsv1.2 -fsSL \
 ```text
 PACKAGE                                  INSTALLED      LATEST         DELTA
 -------                                  ---------      ------         -----
+EPiServer.Azure                          11.1.1         13.6.0         +2maj, 5min
 EPiServer.CMS                            12.34.4        13.6.0         +1maj
 EPiServer.CMS.Core                       12.24.1        13.6.0         +1maj
 Optimizely.ContentGraph.Cms              4.4.2          4.4.5          +3pat
 
-Total packages scanned:       3
-Updates available:            3
+Total packages scanned:       4
+Updates available:            4
 Up to date or ahead:          0
 Version lookup failures:      0
 ```
 
 - `INSTALLED` — deployed version
 - `LATEST` — latest stable published version
-- `DELTA` — major, minor, or patch distance
+- `DELTA` — every major, minor, or patch component that increased; reset lower components are omitted
 
 ## Requirements
 

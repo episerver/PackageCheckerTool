@@ -37,6 +37,8 @@ assert_true "newer patch" version_is_newer 12.22.10 12.22.9
 assert_false "equal is not newer" version_is_newer 12.22.9 12.22.9
 assert_false "older is not newer" version_is_newer 12.21.9 12.22.0
 assert_equal "major delta" "+1maj" "$(format_version_gap 12.34.4 13.6.0)"
+assert_equal "major and minor delta" "+2maj, 5min" "$(format_version_gap 11.1.1 13.6.0)"
+assert_equal "major and patch delta" "+1maj, 1pat" "$(format_version_gap 16.1.0 17.0.1)"
 assert_equal "minor delta" "+3min" "$(format_version_gap 12.21.6 12.24.0)"
 assert_equal "patch delta" "+3pat" "$(format_version_gap 4.4.2 4.4.5)"
 assert_equal "up-to-date delta" "up to date" "$(format_version_gap 12.22.9 12.22.9)"
