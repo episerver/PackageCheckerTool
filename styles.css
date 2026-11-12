@@ -1,0 +1,117 @@
+.checkmark {
+  display: inline-flex;
+  width: 1.25rem;
+  height: 1.25rem;
+  flex: 0 0 1.25rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--accent-500);
+  color: var(--brand-900);
+  font-size: .75rem;
+  font-weight: 800;
+}
+
+.step-number {
+  display: inline-flex;
+  width: 2rem;
+  height: 2rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: .65rem;
+  background: var(--brand-50);
+  color: var(--brand-900);
+  font-family: var(--opti-font-heading);
+  font-weight: 700;
+}
+
+.command-block {
+  overflow-x: auto;
+  border-radius: .875rem;
+  background: #08251a;
+  padding: 1rem;
+  color: #e8fff0;
+  font: 500 .82rem/1.65 var(--opti-font-mono);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.terminal {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid #173e31;
+  border-radius: 1rem;
+  background: #071b14;
+  box-shadow: 0 20px 50px rgba(8,37,26,.16);
+}
+
+.terminal-bar {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  border-bottom: 1px solid #244c3e;
+  background: #0d2c21;
+  padding: .75rem 1rem;
+}
+
+.terminal-bar span {
+  width: .65rem;
+  height: .65rem;
+  border-radius: 999px;
+  background: #ff99b6;
+}
+
+.terminal-bar span:nth-child(2) { background: #abff44; }
+.terminal-bar span:nth-child(3) { background: #91dbda; }
+.terminal-bar b {
+  margin-left: .4rem;
+  color: #b9d5c9;
+  font: 500 .72rem/1 Inter, sans-serif;
+}
+
+.terminal pre {
+  overflow-x: auto;
+  padding: 1.25rem;
+  color: #daf3e7;
+  font: 500 .73rem/1.7 var(--opti-font-mono);
+}
+
+.report-file {
+  display: flex;
+  flex-direction: column;
+  gap: .2rem;
+  border-left: 3px solid var(--brand-500);
+  padding-left: .8rem;
+}
+
+.report-file code { color: var(--brand-900); font-weight: 700; }
+.report-file span { color: #64748b; font-size: .78rem; }
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 1.5rem;
+  z-index: 50;
+  transform: translate(-50%, 1rem);
+  border-radius: 999px;
+  background: var(--brand-900);
+  padding: .7rem 1rem;
+  color: white;
+  font-size: .82rem;
+  font-weight: 600;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .18s ease, transform .18s ease;
+}
+
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+@media (max-width: 640px) {
+  .terminal pre { font-size: .66rem; }
+}
+
+@media print {
+  body { background: white; }
+  .no-print, button, #toast { display: none !important; }
+  .card, .terminal { box-shadow: none; break-inside: avoid; }
+}

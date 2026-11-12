@@ -1,0 +1,96 @@
+/* Optimizely theme — generated. Do not edit; use the tokens below. */
+:root {
+  --brand-50: #EFF6E9;
+  --brand-100: #E4F0DA;
+  --brand-500: #41866a;
+  --brand-700: #164a30;
+  --brand-900: #08251A;
+  --accent-500: #ABFF44;
+  --accent-600: #8ee022;
+  --support-grass: #7DDD3D;
+  --support-good-to-go: #3AB533;
+  --support-sky: #91DBDA;
+  --support-sky-soft: #caedec;
+  --support-pink: #FF99B6;
+  --on-brand: #ffffff;
+
+  /* Aliases: several hand-built Optimizely pages already declare --opti-* tokens.
+     Mirroring the names means those snippets keep working against this theme. */
+  --opti-color-primary: #08251A;
+  --opti-color-accent: #ABFF44;
+  /* Display face (VC Nudge → Space Grotesk) for headlines & big stats ONLY;
+     body face (Die Grotesk B → Inter) carries everything else. */
+  --opti-font-heading: "Space Grotesk", Inter, ui-sans-serif, system-ui, sans-serif;
+  --opti-font-body: Inter, ui-sans-serif, system-ui, sans-serif;
+  --opti-font-mono: "Roboto Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --ink: #0f172a;
+  --ink-muted: #64748b;
+  --surface: #ffffff;
+  --surface-sunken: #f8fafc;
+  --border: #e2e8f0;
+
+  --radius: 0.875rem;
+  --shadow-card: 0 1px 2px rgba(16, 24, 40, 0.04), 0 4px 16px rgba(16, 24, 40, 0.06);
+}
+
+body {
+  background: var(--surface-sunken);
+  color: var(--ink);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Headlines use the display face; body text stays on Inter (brand type rule). */
+h1, h2 {
+  font-family: var(--opti-font-heading);
+  letter-spacing: -0.01em;
+}
+
+/* Visible focus for keyboard users — accessibility baseline, not decoration. */
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--brand-500);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* Component classes — use these instead of re-styling a button every time. */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1rem;
+  border-radius: 0.625rem;
+  font-weight: 500;
+  font-size: 0.875rem;
+  line-height: 1;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background-color 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
+}
+.btn-brand { background: var(--brand-900); color: var(--on-brand); }
+.btn-brand:hover { background: var(--brand-700); }
+.btn-accent { background: var(--accent-500); color: var(--brand-900); font-weight: 600; }
+.btn-accent:hover { background: var(--accent-600); }
+.btn-ghost { background: transparent; color: var(--ink); border-color: var(--border); }
+.btn-ghost:hover { background: var(--surface-sunken); }
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
+  padding: 1.25rem;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.125rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  background: var(--brand-50);
+  color: var(--brand-700);
+}

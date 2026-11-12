@@ -1,0 +1,9 @@
+# Generated reports and caches
+known_issues.json
+nugetchk_report.json
+nugetchk_terminal_report.txt
+*_nugetchk_notes.zip
+
+# Temporary and diagnostic output
+*.tmp
+*.log

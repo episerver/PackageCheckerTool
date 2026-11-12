@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="Optimizely">
+  <a:themeElements>
+    <a:clrScheme name="optimizely">
+      <a:dk1><a:srgbClr val="08251A"/></a:dk1><a:lt1><a:srgbClr val="FFFFFF"/></a:lt1><a:dk2><a:srgbClr val="0D3A29"/></a:dk2><a:lt2><a:srgbClr val="E4F0DA"/></a:lt2>
+      <a:accent1><a:srgbClr val="ABFF44"/></a:accent1><a:accent2><a:srgbClr val="08251A"/></a:accent2><a:accent3><a:srgbClr val="91DBDA"/></a:accent3><a:accent4><a:srgbClr val="FF99B6"/></a:accent4><a:accent5><a:srgbClr val="3AB533"/></a:accent5><a:accent6><a:srgbClr val="7DDD3D"/></a:accent6>
+      <a:hlink><a:srgbClr val="007B79"/></a:hlink><a:folHlink><a:srgbClr val="197050"/></a:folHlink>
+    </a:clrScheme>
+    <a:fontScheme name="optimizely">
+      <a:majorFont><a:latin typeface="Roboto"/><a:ea typeface=""/><a:cs typeface=""/></a:majorFont>
+      <a:minorFont><a:latin typeface="Roboto"/><a:ea typeface=""/><a:cs typeface=""/></a:minorFont>
+    </a:fontScheme>
+    <a:fmtScheme name="optimizely">
+      <a:fillStyleLst><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:fillStyleLst>
+      <a:lnStyleLst><a:ln w="6350" cap="flat" cmpd="sng" algn="ctr"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:prstDash val="solid"/></a:ln><a:ln w="12700" cap="flat" cmpd="sng" algn="ctr"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:prstDash val="solid"/></a:ln><a:ln w="19050" cap="flat" cmpd="sng" algn="ctr"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:prstDash val="solid"/></a:ln></a:lnStyleLst>
+      <a:effectStyleLst><a:effectStyle><a:effectLst/></a:effectStyle><a:effectStyle><a:effectLst/></a:effectStyle><a:effectStyle><a:effectLst/></a:effectStyle></a:effectStyleLst>
+      <a:bgFillStyleLst><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:bgFillStyleLst>
+    </a:fmtScheme>
+  </a:themeElements>
+</a:theme>

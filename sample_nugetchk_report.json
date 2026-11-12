@@ -1,0 +1,59 @@
+{
+  "generated_at": "2026-02-18T14:32:07Z",
+  "app_root": "/home/site/wwwroot",
+  "deps_file": "MyEpiSite.deps.json",
+  "installed_package_count": 4,
+  "packages_with_issues": 3,
+  "total_issue_entries": 12,
+  "installed_packages": [
+    { "name": "EPiServer.CMS.Core", "version": "12.10.0" },
+    { "name": "EPiServer.CMS.UI", "version": "12.18.0" },
+    { "name": "EPiServer.Find", "version": "16.1.0" },
+    { "name": "Optimizely.ContentGraph.Cms", "version": "3.5.0" }
+  ],
+  "latest_versions_same_major": {
+    "EPiServer.CMS.Core": "12.22.9",
+    "EPiServer.CMS.UI": "12.30.1",
+    "EPiServer.Find": "16.3.2",
+    "Optimizely.ContentGraph.Cms": "3.8.0"
+  },
+  "latest_versions_absolute": {
+    "EPiServer.CMS.Core": "12.22.9",
+    "EPiServer.CMS.UI": "12.30.1",
+    "EPiServer.Find": "17.0.1",
+    "Optimizely.ContentGraph.Cms": "4.1.0"
+  },
+  "recommendations": [
+    {
+      "package": "EPiServer.CMS.Core",
+      "installed_version": "12.10.0",
+      "latest_available": "12.22.9",
+      "issues_fixed_in_newer": 2,
+      "matched_keywords": ["high memory", "memory leak", "performance", "slow"],
+      "details": [
+        { "release_note_id": "CMS-16332", "fix_version": "12.11.0", "keywords": ["high memory"], "snippet": "XhtmlString/ContentArea consumed considerably more memory than they were actually storing." },
+        { "release_note_id": "CMS-40238", "fix_version": "12.22.0", "keywords": ["memory leak"], "snippet": "Fixed a potential memory leak in ContentArea where event handlers were not properly unregistered." }
+      ]
+    },
+    {
+      "package": "EPiServer.CMS.UI",
+      "installed_version": "12.18.0",
+      "latest_available": "12.30.1",
+      "issues_fixed_in_newer": 2,
+      "matched_keywords": ["memory leak", "performance", "slow"],
+      "details": [
+        { "release_note_id": "CMS-32491", "fix_version": "12.21.0", "keywords": ["performance", "slow"], "snippet": "Unnecessary regex creation increased the duration of the link validation job." }
+      ]
+    },
+    {
+      "package": "EPiServer.Find",
+      "installed_version": "16.1.0",
+      "latest_available": "16.3.2",
+      "issues_fixed_in_newer": 1,
+      "matched_keywords": ["performance", "timeout"],
+      "details": [
+        { "release_note_id": "FIND-9812", "fix_version": "16.2.0", "keywords": ["timeout", "performance"], "snippet": "Fixed timeout issues during large content index rebuilds." }
+      ]
+    }
+  ]
+}
